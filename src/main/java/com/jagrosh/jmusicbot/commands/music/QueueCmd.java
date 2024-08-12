@@ -20,13 +20,14 @@ import java.util.concurrent.TimeUnit;
 import com.jagrosh.jdautilities.command.CommandEvent;
 import com.jagrosh.jdautilities.menu.Paginator;
 import com.jagrosh.jmusicbot.Bot;
-import com.jagrosh.jmusicbot.JMusicBot;
 import com.jagrosh.jmusicbot.audio.AudioHandler;
 import com.jagrosh.jmusicbot.audio.QueuedTrack;
 import com.jagrosh.jmusicbot.commands.MusicCommand;
+import com.jagrosh.jmusicbot.settings.QueueType;
 import com.jagrosh.jmusicbot.settings.RepeatMode;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
+import com.jagrosh.jmusicbot.utils.TimeUtil;
 import net.dv8tion.jda.api.MessageBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
@@ -78,7 +79,7 @@ public class QueueCmd extends MusicCommand
             Message nonowp = ah.getNoMusicPlaying(event.getJDA());
             Message built = new MessageBuilder()
                     .setContent(event.getClient().getWarning() + " There is no music in the queue!")
-                    .setEmbed((nowp==null ? nonowp : nowp).getEmbeds().get(0)).build();
+                    .setEmbeds((nowp==null ? nonowp : nowp).getEmbeds().get(0)).build();
             event.reply(built, m -> 
             {
                 if(nowp!=null)
@@ -95,7 +96,7 @@ public class QueueCmd extends MusicCommand
         }
         Settings settings = event.getClient().getSettingsFor(event.getGuild());
         long fintotal = total;
-        builder.setText((i1,i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, fintotal, settings.getRepeatMode()))
+        builder.setText((i1,i2) -> getQueueTitle(ah, event.getClient().getSuccess(), songs.length, fintotal, settings.getRepeatMode(), settings.getQueueType()))
                 .setItems(songs)
                 .setUsers(event.getAuthor())
                 .setColor(event.getSelfMember().getColor())
@@ -103,16 +104,17 @@ public class QueueCmd extends MusicCommand
         builder.build().paginate(event.getChannel(), pagenum);
     }
     
-    private String getQueueTitle(AudioHandler ah, String success, int songslength, long total, RepeatMode repeatmode)
+    private String getQueueTitle(AudioHandler ah, String success, int songslength, long total, RepeatMode repeatmode, QueueType queueType)
     {
         StringBuilder sb = new StringBuilder();
         if(ah.getPlayer().getPlayingTrack()!=null)
         {
-            sb.append(ah.getPlayer().isPaused() ? JMusicBot.PAUSE_EMOJI : JMusicBot.PLAY_EMOJI).append(" **")
+            sb.append(ah.getStatusEmoji()).append(" **")
                     .append(ah.getPlayer().getPlayingTrack().getInfo().title).append("**\n");
         }
         return FormatUtil.filter(sb.append(success).append(" Current Queue | ").append(songslength)
-                .append(" entries | `").append(FormatUtil.formatTime(total)).append("` ")
-                .append(repeatmode.getEmoji() != null ? "| "+repeatmode.getEmoji() : "").toString());
+                .append(" entries | `").append(TimeUtil.formatTime(total)).append("` ")
+                .append("| ").append(queueType.getEmoji()).append(" `").append(queueType.getUserFriendlyName()).append('`')
+                .append(repeatmode.getEmoji() != null ? " | "+repeatmode.getEmoji() : "").toString());
     }
 }

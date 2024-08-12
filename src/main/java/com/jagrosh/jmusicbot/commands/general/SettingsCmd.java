@@ -18,6 +18,7 @@ package com.jagrosh.jmusicbot.commands.general;
 import com.jagrosh.jdautilities.command.Command;
 import com.jagrosh.jdautilities.command.CommandEvent;
 import com.jagrosh.jmusicbot.Bot;
+import com.jagrosh.jmusicbot.settings.QueueType;
 import com.jagrosh.jmusicbot.settings.RepeatMode;
 import com.jagrosh.jmusicbot.settings.Settings;
 import com.jagrosh.jmusicbot.utils.FormatUtil;
@@ -63,12 +64,15 @@ public class SettingsCmd extends Command
                         + "\nRepeat Mode: " + (s.getRepeatMode() == RepeatMode.OFF
                                                 ? s.getRepeatMode().getUserFriendlyName()
                                                 : "**"+s.getRepeatMode().getUserFriendlyName()+"**")
+                        + "\nQueue Type: " + (s.getQueueType() == QueueType.FAIR
+                                                ? s.getQueueType().getUserFriendlyName()
+                                                : "**"+s.getQueueType().getUserFriendlyName()+"**")
                         + "\nDefault Playlist: " + (s.getDefaultPlaylist() == null ? "None" : "**" + s.getDefaultPlaylist() + "**")
                         )
                 .setFooter(event.getJDA().getGuilds().size() + " servers | "
                         + event.getJDA().getGuilds().stream().filter(g -> g.getSelfMember().getVoiceState().inVoiceChannel()).count()
                         + " audio connections", null);
-        event.getChannel().sendMessage(builder.setEmbed(ebuilder.build()).build()).queue();
+        event.getChannel().sendMessage(builder.setEmbeds(ebuilder.build()).build()).queue();
     }
     
 }

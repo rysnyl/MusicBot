@@ -16,14 +16,13 @@
 package com.jagrosh.jmusicbot;
 
 import com.jagrosh.jmusicbot.entities.Prompt;
-import com.jagrosh.jmusicbot.utils.FormatUtil;
 import com.jagrosh.jmusicbot.utils.OtherUtil;
+import com.jagrosh.jmusicbot.utils.TimeUtil;
 import com.sedmelluq.discord.lavaplayer.track.AudioTrack;
 import com.typesafe.config.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
 
@@ -40,10 +39,13 @@ public class BotConfig
     private final static String END_TOKEN = "/// END OF JMUSICBOT CONFIG ///";
     
     private Path path = null;
-    private String token, prefix, altprefix, helpWord, playlistsFolder,
-            successEmoji, warningEmoji, errorEmoji, loadingEmoji, searchingEmoji;
+    private String token, prefix, altprefix, helpWord, playlistsFolder, logLevel,
+            successEmoji, warningEmoji, errorEmoji, loadingEmoji, searchingEmoji,
+            evalEngine;
     private boolean stayInChannel, songInGame, npImages, updatealerts, useEval, dbots;
     private long owner, maxSeconds, aloneTimeUntilStop;
+    private int maxYTPlaylistPages;
+    private double skipratio;
     private OnlineStatus status;
     private Activity game;
     private Config aliases, transforms;
@@ -63,13 +65,7 @@ public class BotConfig
         try 
         {
             // get the path to the config, default config.txt
-            path = OtherUtil.getPath(System.getProperty("config.file", System.getProperty("config", "config.txt")));
-            if(path.toFile().exists())
-            {
-                if(System.getProperty("config.file") == null)
-                    System.setProperty("config.file", System.getProperty("config", path.toAbsolutePath().toString()));
-                ConfigFactory.invalidateCaches();
-            }
+            path = getConfigPath();
             
             // load in the config file, plus the default values
             //Config config = ConfigFactory.parseFile(path.toFile()).withFallback(ConfigFactory.load());
@@ -92,12 +88,16 @@ public class BotConfig
             songInGame = config.getBoolean("songinstatus");
             npImages = config.getBoolean("npimages");
             updatealerts = config.getBoolean("updatealerts");
+            logLevel = config.getString("loglevel");
             useEval = config.getBoolean("eval");
+            evalEngine = config.getString("evalengine");
             maxSeconds = config.getLong("maxtime");
+            maxYTPlaylistPages = config.getInt("maxytplaylistpages");
             aloneTimeUntilStop = config.getLong("alonetimeuntilstop");
             playlistsFolder = config.getString("playlistsfolder");
             aliases = config.getConfig("aliases");
             transforms = config.getConfig("transforms");
+            skipratio = config.getDouble("skipratio");
             dbots = owner == 113156185389092864L;
             
             // we may need to write a new config file
@@ -161,19 +161,9 @@ public class BotConfig
     
     private void writeToFile()
     {
-        String original = OtherUtil.loadResource(this, "/reference.conf");
-        byte[] bytes;
-        if(original==null)
-        {
-            bytes = ("token = "+token+"\r\nowner = "+owner).getBytes();
-        }
-        else
-        {
-            bytes = original.substring(original.indexOf(START_TOKEN)+START_TOKEN.length(), original.indexOf(END_TOKEN))
-                .replace("BOT_TOKEN_HERE", token)
+        byte[] bytes = loadDefaultConfig().replace("BOT_TOKEN_HERE", token)
                 .replace("0 // OWNER ID", Long.toString(owner))
                 .trim().getBytes();
-        }
         try 
         {
             Files.write(path, bytes);
@@ -183,6 +173,43 @@ public class BotConfig
             prompt.alert(Prompt.Level.WARNING, CONTEXT, "Failed to write new config options to config.txt: "+ex
                 + "\nPlease make sure that the files are not on your desktop or some other restricted area.\n\nConfig Location: " 
                 + path.toAbsolutePath().toString());
+        }
+    }
+    
+    private static String loadDefaultConfig()
+    {
+        String original = OtherUtil.loadResource(new JMusicBot(), "/reference.conf");
+        return original==null 
+                ? "token = BOT_TOKEN_HERE\r\nowner = 0 // OWNER ID" 
+                : original.substring(original.indexOf(START_TOKEN)+START_TOKEN.length(), original.indexOf(END_TOKEN)).trim();
+    }
+    
+    private static Path getConfigPath()
+    {
+        Path path = OtherUtil.getPath(System.getProperty("config.file", System.getProperty("config", "config.txt")));
+        if(path.toFile().exists())
+        {
+            if(System.getProperty("config.file") == null)
+                System.setProperty("config.file", System.getProperty("config", path.toAbsolutePath().toString()));
+            ConfigFactory.invalidateCaches();
+        }
+        return path;
+    }
+    
+    public static void writeDefaultConfig()
+    {
+        Prompt prompt = new Prompt(null, null, true, true);
+        prompt.alert(Prompt.Level.INFO, "JMusicBot Config", "Generating default config file");
+        Path path = BotConfig.getConfigPath();
+        byte[] bytes = BotConfig.loadDefaultConfig().getBytes();
+        try
+        {
+            prompt.alert(Prompt.Level.INFO, "JMusicBot Config", "Writing default config file to " + path.toAbsolutePath().toString());
+            Files.write(path, bytes);
+        }
+        catch(Exception ex)
+        {
+            prompt.alert(Prompt.Level.ERROR, "JMusicBot Config", "An error occurred writing the default config file: " + ex.getMessage());
         }
     }
     
@@ -209,6 +236,11 @@ public class BotConfig
     public String getToken()
     {
         return token;
+    }
+    
+    public double getSkipRatio()
+    {
+        return skipratio;
     }
     
     public long getOwnerId()
@@ -246,6 +278,11 @@ public class BotConfig
         return game;
     }
     
+    public boolean isGameNone()
+    {
+        return game != null && game.getName().equalsIgnoreCase("none");
+    }
+    
     public OnlineStatus getStatus()
     {
         return status;
@@ -280,10 +317,20 @@ public class BotConfig
     {
         return updatealerts;
     }
-    
+
+    public String getLogLevel()
+    {
+        return logLevel;
+    }
+
     public boolean useEval()
     {
         return useEval;
+    }
+    
+    public String getEvalEngine()
+    {
+        return evalEngine;
     }
     
     public boolean useNPImages()
@@ -296,9 +343,14 @@ public class BotConfig
         return maxSeconds;
     }
     
+    public int getMaxYTPlaylistPages()
+    {
+        return maxYTPlaylistPages;
+    }
+    
     public String getMaxTime()
     {
-        return FormatUtil.formatTime(maxSeconds * 1000);
+        return TimeUtil.formatTime(maxSeconds * 1000);
     }
 
     public long getAloneTimeUntilStop()

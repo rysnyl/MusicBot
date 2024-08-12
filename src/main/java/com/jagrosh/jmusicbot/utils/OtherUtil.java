@@ -23,8 +23,12 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.OnlineStatus;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.ApplicationInfo;
+import net.dv8tion.jda.api.entities.User;
 import okhttp3.*;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -60,7 +64,7 @@ public class OtherUtil
             {
                 result = Paths.get(new File(JMusicBot.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParentFile().getPath() + File.separator + path);
             }
-            catch(URISyntaxException ex) {}
+            catch(URISyntaxException ignored) {}
         }
         return result;
     }
@@ -80,7 +84,7 @@ public class OtherUtil
             reader.lines().forEach(line -> sb.append("\r\n").append(line));
             return sb.toString().trim();
         }
-        catch(IOException ex)
+        catch(IOException ignored)
         {
             return null;
         }
@@ -150,7 +154,14 @@ public class OtherUtil
         return st == null ? OnlineStatus.ONLINE : st;
     }
     
-    public static String checkVersion(Prompt prompt)
+    public static void checkJavaVersion(Prompt prompt)
+    {
+        if(!System.getProperty("java.vm.name").contains("64"))
+            prompt.alert(Prompt.Level.WARNING, "Java Version", 
+                    "It appears that you may not be using a supported Java version. Please use 64-bit java.");
+    }
+    
+    public static void checkVersion(Prompt prompt)
     {
         // Get current version number
         String version = getCurrentVersion();
@@ -160,11 +171,8 @@ public class OtherUtil
         
         if(latestVersion!=null && !latestVersion.equals(version))
         {
-            prompt.alert(Prompt.Level.WARNING, "Version", String.format(NEW_VERSION_AVAILABLE, version, latestVersion));
+            prompt.alert(Prompt.Level.WARNING, "JMusicBot Version", String.format(NEW_VERSION_AVAILABLE, version, latestVersion));
         }
-        
-        // Return the current version
-        return version;
     }
     
     public static String getCurrentVersion()
@@ -202,5 +210,24 @@ public class OtherUtil
         {
             return null;
         }
+    }
+
+    /**
+     * Checks if the bot JMusicBot is being run on is supported & returns the reason if it is not.
+     * @return A string with the reason, or null if it is supported.
+     */
+    public static String getUnsupportedBotReason(JDA jda) 
+    {
+        if (jda.getSelfUser().getFlags().contains(User.UserFlag.VERIFIED_BOT))
+            return "The bot is verified. Using JMusicBot in a verified bot is not supported.";
+
+        ApplicationInfo info = jda.retrieveApplicationInfo().complete();
+        if (info.isBotPublic())
+            return "\"Public Bot\" is enabled. Using JMusicBot as a public bot is not supported. Please disable it in the "
+                    + "Developer Dashboard at https://discord.com/developers/applications/" + jda.getSelfUser().getId() + "/bot ."
+                    + "You may also need to disable all Installation Contexts at https://discord.com/developers/applications/" 
+                    + jda.getSelfUser().getId() + "/installation .";
+
+        return null;
     }
 }
